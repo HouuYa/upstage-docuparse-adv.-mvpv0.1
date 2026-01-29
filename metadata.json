@@ -1,0 +1,5 @@
+{
+  "name": "Upstage DocuParse-Adv. MVPv0.1",
+  "description": "A professional tool to digitize and parse HWP/HWPX documents using the Upstage AI API.\nPaser + Information extractions",
+  "requestFramePermissions": []
+}

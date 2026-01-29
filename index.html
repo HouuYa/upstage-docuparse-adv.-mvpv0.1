@@ -1,0 +1,100 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Upstage Document Parser</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- MathJax for rendering LaTeX equations -->
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          displayMath: [['$$', '$$'], ['\\[', '\\]']],
+          processEscapes: true
+        },
+        svg: {
+          fontCache: 'global'
+        },
+        startup: {
+          ready: () => {
+             console.log('MathJax is ready');
+             window.MathJax.startup.defaultReady();
+          }
+        }
+      };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+      /* Custom scrollbar for webkit */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; 
+      }
+      
+      /* HTML Content Styling within the result box */
+      .parsed-content { font-family: 'Pretendard', system-ui, -apple-system, sans-serif; }
+      .parsed-content h1 { font-size: 1.6rem; font-weight: 800; margin-bottom: 0.75rem; margin-top: 1.5rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem; }
+      .parsed-content h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.75rem; margin-top: 1.25rem; color: #334155; }
+      .parsed-content h3 { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem; margin-top: 1rem; color: #475569; }
+      .parsed-content p { margin-bottom: 1rem; line-height: 1.7; color: #334155; font-size: 1rem; }
+      
+      /* Tables */
+      .parsed-content table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: 0.9rem; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+      .parsed-content th, .parsed-content td { border: 1px solid #cbd5e1; padding: 0.75rem; text-align: left; vertical-align: top; }
+      .parsed-content th { background-color: #f1f5f9; font-weight: 700; color: #1e293b; }
+      .parsed-content td { background-color: #ffffff; }
+
+      /* Figures & Charts */
+      .parsed-content figure { margin: 2rem 0; padding: 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+      .parsed-content figure[data-category='chart'] { border-color: #c7d2fe; background: #eef2ff; }
+      .parsed-content img { max-width: 100%; height: auto; border-radius: 4px; margin: 0 auto; display: block; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+      .parsed-content figcaption { margin-top: 0.75rem; font-size: 0.9rem; color: #64748b; text-align: center; font-style: italic; }
+      
+      /* Equations */
+      .parsed-content p[data-category='equation'] { 
+        padding: 1.5rem; 
+        background: #fff; 
+        border-radius: 6px; 
+        border: 1px solid #e2e8f0;
+        text-align: center;
+        overflow-x: auto;
+        margin: 1.5rem 0;
+        font-size: 1.1rem;
+      }
+
+      /* Specific adjustment for chart metadata text within figcaption */
+      .parsed-content figure figcaption p { margin-bottom: 0.25rem; text-align: left; font-style: normal; font-size: 0.85rem; color: #475569; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-slate-50 text-slate-900 antialiased selection:bg-indigo-100 selection:text-indigo-900">
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
