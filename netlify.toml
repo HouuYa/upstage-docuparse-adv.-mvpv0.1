@@ -1,0 +1,19 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Proxy /api/upstage/* to https://api.upstage.ai/v1/*
+# This mimics the vite.config.ts proxy behavior for production
+[[redirects]]
+  from = "/api/upstage/*"
+  to = "https://api.upstage.ai/v1/:splat"
+  status = 200
+  force = true
+  headers = {X-From = "Netlify"}
+
+# SPA Catch-all redirect
+# Ensures that reloading deeper paths works by sending everything else to index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
