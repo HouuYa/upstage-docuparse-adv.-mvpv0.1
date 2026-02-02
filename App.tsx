@@ -298,10 +298,11 @@ function App() {
 
       const flat = flattenObject(state.verifiedData);
       const escapeCsv = (val: string) => {
-        if (val.includes(",") || val.includes('"') || val.includes("\n")) {
-          return `"${val.replace(/"/g, '""')}"`;
+        const sanitized = (val.startsWith("=") || val.startsWith("+") || val.startsWith("-") || val.startsWith("@")) ? "'" + val : val;
+        if (sanitized.includes(",") || sanitized.includes('"') || sanitized.includes("\n")) {
+          return "\"" + sanitized.replace(/\"/g, '""') + "\"";
         }
-        return val;
+        return sanitized;
       };
       const headers = Object.keys(flat);
       const csvRows = [
