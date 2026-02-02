@@ -2,7 +2,7 @@
 import { UPSTAGE_API_URL, UPSTAGE_EXTRACTION_URL, UPSTAGE_SCHEMA_GEN_URL } from "../constants";
 import { UpstageResponse, ParseOptions, ExtractionOptions, ExtractionResponse } from "../types";
 
-const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB Limit
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB Limit (per Upstage docs)
 
 // --- Schema Validation ---
 
@@ -45,6 +45,26 @@ export const validateSchema = (schema: any): SchemaValidationResult => {
   const schemaStr = JSON.stringify(schema);
   if (schemaStr.length > 15000) {
     warnings.push(`스키마 문자 수가 ${schemaStr.length}자로 동기 API 제한(15,000자)에 근접하거나 초과합니다.`);
+  }
+
+  // Check total property name length (docs: cannot exceed 10,000 characters)
+  const collectNames = (obj: any): string[] => {
+    const names: string[] = [];
+    if (obj?.properties) {
+      for (const [k, v] of Object.entries(obj.properties) as [string, any][]) {
+        names.push(k);
+        names.push(...collectNames(v));
+      }
+    }
+    if (obj?.items) {
+      names.push(...collectNames(obj.items));
+    }
+    return names;
+  };
+  const allNames = collectNames(schema);
+  const totalNameLength = allNames.reduce((sum, n) => sum + n.length, 0);
+  if (totalNameLength > 10000) {
+    errors.push(`속성명 총 문자수가 ${totalNameLength}자로 제한(10,000자)을 초과합니다.`);
   }
 
   // Check first-level properties for 'object' type
@@ -108,7 +128,7 @@ export const autoFixSchema = (schema: any): any => {
 const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     if (file.size > MAX_FILE_SIZE) {
-      reject(new Error(`File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 30MB limit.`));
+      reject(new Error(`File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 50MB limit.`));
       return;
     }
     const reader = new FileReader();
@@ -177,7 +197,7 @@ const checkNetworkError = (error: any, context: string): never => {
       "Possible causes:\n" +
       "1. Proxy server not running (Vite).\n" +
       "2. API Key is invalid.\n" +
-      "3. File size is too large (>30MB).\n" +
+      "3. File size is too large (>50MB).\n" +
       "4. Browser blocked the request."
     );
   }
@@ -208,7 +228,7 @@ export const parseDocument = async (
   options: ParseOptions
 ): Promise<UpstageResponse> => {
   if (file.size > MAX_FILE_SIZE) {
-    throw new Error(`File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 30MB limit.`);
+    throw new Error(`File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 50MB limit.`);
   }
 
   const formData = new FormData();
@@ -334,12 +354,12 @@ export const generateSchema = async (
       model: "information-extract",
       messages: [
         {
-          role: "system",
-          content: "Generate a JSON schema for the main tables and key-value pairs in this document. IMPORTANT: First-level properties must be 'string', 'number', 'integer', 'boolean', or 'array' only. Do NOT use 'object' type at the first level of properties. If you need object-type properties, wrap them as items of an array."
-        },
-        {
           role: "user",
           content: [
+            {
+              role: "system",
+              content: "Generate a JSON schema for the main tables and key-value pairs in this document. IMPORTANT: First-level properties must be 'string', 'number', 'integer', 'boolean', or 'array' only. Do NOT use 'object' type at the first level. If you need object-type data, wrap them as items of an array."
+            },
             {
               type: "image_url",
               image_url: { url: dataUrl }
