@@ -97,6 +97,24 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
     }
   }, [extractedData, selectedAssetId, activeTab]);
 
+  // Asset-HTML Source Linking: scroll to and highlight selected asset in HTML source
+  useEffect(() => {
+    if (selectedAssetId !== null && activeTab === 'parsed' && sourceRef.current) {
+      const el = sourceRef.current.querySelector(`[data-element-id="${selectedAssetId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('asset-highlight');
+        const timer = setTimeout(() => {
+          el.classList.remove('asset-highlight');
+        }, 3000);
+        return () => {
+          clearTimeout(timer);
+          el.classList.remove('asset-highlight');
+        };
+      }
+    }
+  }, [selectedAssetId, activeTab]);
+
   // --- Helpers ---
   const flattenMetadata = (obj: NestedMetadata, prefix = ''): Record<string, MetadataValue> => {
     let result: Record<string, MetadataValue> = {};
@@ -246,7 +264,17 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
 
   return (
     <div className="flex flex-col lg:flex-row h-full gap-0 bg-slate-100 border-t border-slate-200">
-      
+      {/* Highlight style for asset-HTML linking */}
+      <style>{`
+        .asset-highlight {
+          outline: 3px solid #6366f1;
+          outline-offset: 2px;
+          background-color: rgba(99, 102, 241, 0.1);
+          border-radius: 4px;
+          transition: outline-color 0.5s ease-out, background-color 0.5s ease-out;
+        }
+      `}</style>
+
       {/* --- LEFT PANEL: DOCUMENT SOURCE --- */}
       <div className="lg:w-1/2 flex flex-col border-r border-slate-200 bg-slate-200/50">
         {/* Toolbar */}
@@ -405,6 +433,7 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
                               onClick={() => {
                                   setSelectedAssetId(asset.id);
                                   setSelectedPath(null);
+                                  setActiveTab('parsed');
                               }}
                               className={`
                                   relative flex gap-4 p-3 rounded-lg border cursor-pointer transition-all
