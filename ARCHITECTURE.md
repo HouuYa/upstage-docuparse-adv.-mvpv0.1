@@ -111,28 +111,54 @@ graph LR
 - **제약**: 중첩 배열 불가
 
 ### KC 안전기준 스키마 예시
+
+> **주의**: 1차 속성에는 `object` 타입을 사용할 수 없습니다.
+> `object`가 필요한 경우 `array`로 래핑하여 items 안에 배치합니다.
+
 ```json
 {
   "type": "object",
   "properties": {
-    "test_item": {
+    "document_title": {
       "type": "string",
-      "description": "시험 항목명 (예: 점도, 끓는점, 안정성)"
+      "description": "문서 제목 (예: 안전확인대상생활용품의 안전기준)"
     },
-    "conditions": {
-      "type": "object",
-      "properties": {
-        "temperature": {"type": "string", "description": "시험 온도"},
-        "time": {"type": "string", "description": "시험 시간"},
-        "method": {"type": "string", "description": "시험 방법"}
-      }
+    "revision_date": {
+      "type": "string",
+      "description": "개정 연월일"
     },
-    "standard_value": {
-      "type": "object",
-      "properties": {
-        "value": {"type": "number", "description": "기준값 (숫자)"},
-        "unit_internal": {"type": "string", "description": "내부 정규화 단위 (예: mm2/s)"},
-        "unit_display": {"type": "string", "description": "표시용 단위 (예: mm²/s)"}
+    "product_scope": {
+      "type": "string",
+      "description": "적용 대상 제품군"
+    },
+    "safety_criteria": {
+      "type": "array",
+      "description": "안전기준 항목 목록",
+      "items": {
+        "type": "object",
+        "properties": {
+          "test_item": {
+            "type": "string",
+            "description": "시험 항목명 (예: 점도, 끓는점, 안정성)"
+          },
+          "conditions": {
+            "type": "object",
+            "properties": {
+              "temperature": {"type": "string", "description": "시험 온도"},
+              "time": {"type": "string", "description": "시험 시간"},
+              "method": {"type": "string", "description": "시험 방법"}
+            }
+          },
+          "standard_value": {
+            "type": "object",
+            "properties": {
+              "value": {"type": "number", "description": "기준값 (숫자)"},
+              "unit_internal": {"type": "string", "description": "내부 정규화 단위 (예: mm2/s)"},
+              "unit_display": {"type": "string", "description": "표시용 단위 (예: mm²/s)"}
+            }
+          }
+        },
+        "required": ["test_item"]
       }
     },
     "applicable_scope": {
@@ -140,7 +166,8 @@ graph LR
       "items": {"type": "string"},
       "description": "적용 대상 (제품군, 등급, 종류)"
     }
-  }
+  },
+  "required": ["safety_criteria"]
 }
 ```
 

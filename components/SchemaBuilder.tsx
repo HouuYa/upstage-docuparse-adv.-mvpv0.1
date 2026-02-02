@@ -12,7 +12,9 @@ interface SchemaField {
   id: string;
   name: string;
   description: string;
-  type: "string" | "number" | "boolean" | "array" | "object";
+  type: "string" | "number" | "integer" | "boolean" | "array" | "object";
+  // Preserve the original JSON definition for complex types (array with object items)
+  _originalDef?: any;
 }
 
 const SchemaBuilder: React.FC<SchemaBuilderProps> = ({ initialSchema, onChange }) => {
@@ -46,17 +48,24 @@ const SchemaBuilder: React.FC<SchemaBuilderProps> = ({ initialSchema, onChange }
     }
   }, []);
 
-  // Parse JSON to Fields
+  // Parse JSON to Fields — preserves original definition for complex types
   const parseJsonToFields = useCallback((jsonStr: string): SchemaField[] => {
     try {
       const parsed = JSON.parse(jsonStr);
       if (parsed.type === "object" && parsed.properties) {
-        return Object.entries(parsed.properties).map(([key, value]: [string, any]) => ({
+        return Object.entries(parsed.properties).map(([key, value]: [string, any]) => {
+          const field: SchemaField = {
             id: Math.random().toString(36).substr(2, 9),
             name: key,
             description: value.description || "",
             type: value.type || "string",
-        }));
+          };
+          // Preserve original definition for array (with object items) so we don't lose nested structure
+          if (value.type === "array" && value.items) {
+            field._originalDef = value;
+          }
+          return field;
+        });
       }
     } catch (e) { }
     return [];
@@ -75,10 +84,25 @@ const SchemaBuilder: React.FC<SchemaBuilderProps> = ({ initialSchema, onChange }
   const convertFieldsToJson = useCallback((fields: SchemaField[]) => {
     const properties: any = {};
     fields.forEach((f) => {
-      if (f.type === "array") {
+      if (f.type === "array" && f._originalDef) {
+        // Preserve the original nested structure, but update description
+        properties[f.name] = { ...f._originalDef, description: f.description };
+      } else if (f.type === "array") {
         properties[f.name] = {
           type: "array",
           description: f.description,
+          items: {
+            type: "object",
+            properties: {
+              "value": { type: "string", description: "Value" }
+            }
+          }
+        };
+      } else if (f.type === "object") {
+        // Convert object to array wrapper to comply with API constraints
+        properties[f.name] = {
+          type: "array",
+          description: f.description + " (auto-wrapped from object)",
           items: {
             type: "object",
             properties: {
@@ -93,7 +117,7 @@ const SchemaBuilder: React.FC<SchemaBuilderProps> = ({ initialSchema, onChange }
         };
       }
     });
-    
+
     return JSON.stringify({
       type: "object",
       properties,
@@ -334,10 +358,9 @@ const SchemaBuilder: React.FC<SchemaBuilderProps> = ({ initialSchema, onChange }
                         >
                             <option value="string">String</option>
                             <option value="number">Number</option>
+                            <option value="integer">Integer</option>
                             <option value="boolean">Boolean</option>
                             <option value="array">Array</option>
-                            {/* Disabled Object type at root level to comply with API restriction */}
-                            <option value="object" disabled title="Object type not allowed at root">Object (Not allowed)</option>
                         </select>
                         <button
                             onClick={() => handleRemoveField(field.id)}
@@ -354,6 +377,13 @@ const SchemaBuilder: React.FC<SchemaBuilderProps> = ({ initialSchema, onChange }
                         className="w-full text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded px-2 py-1.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-colors"
                         placeholder="Description"
                         />
+                        {field.type === "array" && field._originalDef?.items?.properties && (
+                            <div className="mt-1 px-2 py-1.5 bg-indigo-50 border border-indigo-100 rounded text-[10px] text-indigo-700">
+                                <span className="font-semibold">Array items:</span>{" "}
+                                {Object.keys(field._originalDef.items.properties).join(", ")}
+                                <span className="text-indigo-400 ml-1">(edit in Code mode for details)</span>
+                            </div>
+                        )}
                     </div>
                     ))
                 )}

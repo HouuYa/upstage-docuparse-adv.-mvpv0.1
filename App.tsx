@@ -1,11 +1,12 @@
 
-import React, { useEffect, useReducer, useMemo } from "react";
+import React, { useEffect, useReducer, useMemo, useCallback } from "react";
 import { Layout, Play, Settings, RotateCcw, AlertCircle, CheckCircle2, ScanLine, Sparkles, Loader2, ArrowRight, Check, X, Code2 } from "lucide-react";
+import DOMPurify from "dompurify";
 import FileUploader from "./components/FileUploader";
 import ApiKeyModal from "./components/ApiKeyModal";
 import ExtractionViewer from "./components/ExtractionViewer";
 import SchemaBuilder from "./components/SchemaBuilder";
-import { parseDocument, extractInformation, generateSchema } from "./services/upstageService";
+import { parseDocument, extractInformation, generateSchema, validateSchema, autoFixSchema } from "./services/upstageService";
 import { UpstageResponse, ParseOptions, ExtractionOptions, ExtractionResponse } from "./types";
 import { DEFAULT_API_KEY, KC_SAFETY_SCHEMA } from "./constants";
 
@@ -177,7 +178,18 @@ function App() {
         try {
             parsedSchema = JSON.parse(state.schemaJson);
         } catch (e) {
-            throw new Error("Invalid JSON Schema.");
+            throw new Error("Invalid JSON Schema. JSON 형식을 확인해주세요.");
+        }
+
+        // Validate schema against Upstage API constraints
+        const validation = validateSchema(parsedSchema);
+        if (!validation.valid) {
+            throw new Error(
+              "스키마 유효성 검증 실패:\n" + validation.errors.join("\n")
+            );
+        }
+        if (validation.warnings.length > 0) {
+            console.warn("Schema warnings:", validation.warnings);
         }
 
         const options: ExtractionOptions = {
@@ -216,9 +228,17 @@ function App() {
     }
     dispatch({ type: 'START_SCHEMA_GEN' });
     try {
-      const generatedSchema = await generateSchema(state.file, state.apiKey, (s) => 
+      let generatedSchema = await generateSchema(state.file, state.apiKey, (s) =>
           dispatch({ type: 'START_LOADING', payload: s })
       );
+
+      // Auto-fix: convert any first-level 'object' properties to 'array'
+      const validation = validateSchema(generatedSchema);
+      if (!validation.valid) {
+        generatedSchema = autoFixSchema(generatedSchema);
+        console.info("Auto-fixed generated schema to comply with API constraints.");
+      }
+
       dispatch({ type: 'SET_SCHEMA', payload: JSON.stringify(generatedSchema, null, 2) });
     } catch (err: any) {
       dispatch({ type: 'SET_ERROR', payload: err.message || "Schema generation failed" });
@@ -235,18 +255,61 @@ function App() {
   };
 
   // --- Export ---
-  const handleDownload = () => {
-      if (!state.verifiedData) return;
-      const dataStr = JSON.stringify(state.verifiedData, null, 2);
-      const blob = new Blob([dataStr], { type: "application/json" });
+  const downloadFile = useCallback((content: string, filename: string, mimeType: string) => {
+      const blob = new Blob([content], { type: mimeType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `kc-data-${Date.now()}.json`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+  }, []);
+
+  const handleDownloadJson = () => {
+      if (!state.verifiedData) return;
+      downloadFile(JSON.stringify(state.verifiedData, null, 2), `kc-data-${Date.now()}.json`, "application/json");
+  };
+
+  const handleDownloadCsv = () => {
+      if (!state.verifiedData) return;
+
+      const flattenObject = (obj: any, prefix = ""): Record<string, string> => {
+        const result: Record<string, string> = {};
+        for (const [key, value] of Object.entries(obj)) {
+          const fullKey = prefix ? `${prefix}.${key}` : key;
+          if (Array.isArray(value)) {
+            value.forEach((item, idx) => {
+              if (typeof item === "object" && item !== null) {
+                Object.assign(result, flattenObject(item, `${fullKey}[${idx}]`));
+              } else {
+                result[`${fullKey}[${idx}]`] = String(item ?? "");
+              }
+            });
+          } else if (typeof value === "object" && value !== null) {
+            Object.assign(result, flattenObject(value, fullKey));
+          } else {
+            result[fullKey] = String(value ?? "");
+          }
+        }
+        return result;
+      };
+
+      const flat = flattenObject(state.verifiedData);
+      const escapeCsv = (val: string) => {
+        const sanitized = (val.startsWith("=") || val.startsWith("+") || val.startsWith("-") || val.startsWith("@")) ? "'" + val : val;
+        if (sanitized.includes(",") || sanitized.includes('"') || sanitized.includes("\n")) {
+          return "\"" + sanitized.replace(/\"/g, '""') + "\"";
+        }
+        return sanitized;
+      };
+      const headers = Object.keys(flat);
+      const csvRows = [
+        headers.map(escapeCsv).join(","),
+        headers.map(h => escapeCsv(flat[h])).join(",")
+      ];
+      downloadFile("\uFEFF" + csvRows.join("\n"), `kc-data-${Date.now()}.csv`, "text/csv;charset=utf-8");
   };
 
   const isImageFile = useMemo(() => {
@@ -460,8 +523,11 @@ function App() {
                         {state.currentStep === 4 && (
                             <div className="p-4 flex-1 space-y-4">
                                 <p className="text-sm text-slate-600">Download the structured data for your DB.</p>
-                                <button onClick={handleDownload} className="w-full py-3 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors">
+                                <button onClick={handleDownloadJson} className="w-full py-3 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors">
                                     <Code2 className="w-5 h-5" /> JSON Export
+                                </button>
+                                <button onClick={handleDownloadCsv} className="w-full py-3 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors">
+                                    <Code2 className="w-5 h-5" /> CSV Export
                                 </button>
                             </div>
                         )}
@@ -487,7 +553,7 @@ function App() {
                          </div>
                          <div className="flex-1 overflow-auto bg-slate-50 p-4 custom-scrollbar relative">
                              {state.parsingResult ? (
-                                <div className="parsed-content bg-white shadow-sm p-8 max-w-4xl mx-auto border border-slate-200 rounded-lg min-h-[500px]" dangerouslySetInnerHTML={{ __html: state.parsingResult.content.html }} />
+                                <div className="parsed-content bg-white shadow-sm p-8 max-w-4xl mx-auto border border-slate-200 rounded-lg min-h-[500px]" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(state.parsingResult.content.html, { ADD_TAGS: ['figure', 'figcaption', 'math', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'mover', 'munder'], ADD_ATTR: ['data-category', 'data-page', 'data-element-id'] }) }} />
                              ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-slate-400">
                                     <ScanLine className="w-12 h-12 mb-4 opacity-20" />
