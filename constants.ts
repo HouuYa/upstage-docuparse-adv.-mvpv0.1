@@ -41,16 +41,22 @@ export const OUTPUT_FORMATS = [
 ];
 
 // Refined Schema based on "KC Safety Standard Document Structuring" Analysis
+// NOTE: Upstage API constraint — first-level properties cannot be 'object'.
+//       Use flat strings or wrap in 'array' with object items instead.
 export const KC_SAFETY_SCHEMA = {
   "type": "object",
   "properties": {
-    "document_metadata": {
-      "type": "object",
-      "properties": {
-        "title": { "type": "string", "description": "문서 제목 (예: 안전확인대상생활용품의 안전기준)" },
-        "revision_date": { "type": "string", "description": "개정 연월일" },
-        "product_scope": { "type": "string", "description": "적용 대상 제품군" }
-      }
+    "document_title": {
+      "type": "string",
+      "description": "문서 제목 (예: 안전확인대상생활용품의 안전기준)"
+    },
+    "revision_date": {
+      "type": "string",
+      "description": "개정 연월일"
+    },
+    "product_scope": {
+      "type": "string",
+      "description": "적용 대상 제품군"
     },
     "safety_criteria": {
       "type": "array",
@@ -58,9 +64,9 @@ export const KC_SAFETY_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "test_item": { 
-            "type": "string", 
-            "description": "시험 항목명 (예: 점도, 끓는점, 인장강도)" 
+          "test_item": {
+            "type": "string",
+            "description": "시험 항목명 (예: 점도, 끓는점, 인장강도)"
           },
           "conditions": {
             "type": "object",
