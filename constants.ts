@@ -41,8 +41,9 @@ export const OUTPUT_FORMATS = [
 ];
 
 // Refined Schema based on "KC Safety Standard Document Structuring" Analysis
-// NOTE: Upstage API constraint — first-level properties cannot be 'object'.
-//       Use flat strings or wrap in 'array' with object items instead.
+// NOTE: Upstage API constraint — 'object' type can ONLY be used as array 'items'.
+//       Properties at ANY level must be string/number/integer/boolean/array only.
+//       Nested objects inside array items must also be flattened to primitives.
 export const KC_SAFETY_SCHEMA = {
   "type": "object",
   "properties": {
@@ -68,20 +69,25 @@ export const KC_SAFETY_SCHEMA = {
             "type": "string",
             "description": "시험 항목명 (예: 점도, 끓는점, 인장강도)"
           },
-          "conditions": {
-            "type": "object",
-            "properties": {
-                "temperature": { "type": "string", "description": "시험 온도 (예: 25±3℃)" },
-                "time": { "type": "string", "description": "시험 시간 (예: 24시간)" },
-                "method": { "type": "string", "description": "시험 방법 요약" }
-            }
+          "condition_temperature": {
+            "type": "string",
+            "description": "시험 온도 (예: 25±3℃)"
+          },
+          "condition_time": {
+            "type": "string",
+            "description": "시험 시간 (예: 24시간)"
+          },
+          "condition_method": {
+            "type": "string",
+            "description": "시험 방법 요약"
           },
           "standard_value": {
-            "type": "object",
-            "properties": {
-                 "value": { "type": "string", "description": "기준값 (숫자 및 범위 포함)" },
-                 "unit": { "type": "string", "description": "단위 (예: mm²/s, mg/kg)" }
-            }
+            "type": "string",
+            "description": "기준값 (숫자 및 범위 포함)"
+          },
+          "standard_unit": {
+            "type": "string",
+            "description": "단위 (예: mm²/s, mg/kg)"
           }
         },
         "required": ["test_item"]

@@ -56,16 +56,28 @@ export interface ExtractionResponse {
   id: string;
   model: string;
   created: number;
+  object: string | null;
+  system_fingerprint: string | null;
   usage: {
+    completion_tokens: number;
+    prompt_tokens: number;
     total_tokens: number;
+    completion_tokens_details: any | null;
+    prompt_tokens_details: any | null;
   };
   choices: Array<{
+    finish_reason: string;
+    index: number | null;
+    logprobs: any | null;
     message: {
       content: string; // Stringified JSON of the extracted data
+      role: string;
+      function_call: any | null;
       tool_calls?: Array<{
+        type: string; // "function"
         function: {
-          name: string;
-          arguments: string; // Stringified JSON with metadata (coordinates, confidence)
+          name: string; // "additional_values"
+          arguments: string; // Stringified JSON with _value, confidence, coordinates, page
         };
       }>;
     };

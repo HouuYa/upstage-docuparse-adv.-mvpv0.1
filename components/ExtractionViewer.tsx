@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
+import DOMPurify from "dompurify";
 import { ExtractionResponse, MetadataValue, UpstageResponse, Coordinate } from "../types";
 import { 
   AlertTriangle, MousePointerClick, Check, 
@@ -289,20 +290,54 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
                      <img src={previewUrl} alt="Document" className="max-w-full h-auto block" />
                      {/* Overlay Layer */}
                      <div className="absolute inset-0 pointer-events-none">
-                         {/* Highlight for extracted data */}
-                         {selectedPath && metadataMap.get(selectedPath)?.coordinates?.map((coord, i) => (
-                             <div 
-                                key={`data-${i}`}
-                                className="absolute bg-indigo-500/20 border-2 border-indigo-500 animate-pulse shadow-[0_0_10px_rgba(99,102,241,0.5)]"
-                                style={{
-                                    left: `${coord.x * 100}%`,
-                                    top: `${coord.y * 100}%`,
-                                    width: '15px', height: '15px', 
-                                    transform: 'translate(-50%, -50%)',
-                                    borderRadius: '50%'
-                                }}
-                             />
-                         ))}
+                         {/* Highlight for extracted data — bounding box from 4 corners */}
+                         {selectedPath && (() => {
+                             const meta = metadataMap.get(selectedPath);
+                             const coords = meta?.coordinates;
+                             if (!coords || coords.length < 4) return null;
+                             // coords: [top-left, top-right, bottom-right, bottom-left] with normalized 0-1 values
+                             const xs = coords.map(c => c.x);
+                             const ys = coords.map(c => c.y);
+                             const minX = Math.min(...xs);
+                             const minY = Math.min(...ys);
+                             const maxX = Math.max(...xs);
+                             const maxY = Math.max(...ys);
+                             return (
+                                 <div
+                                     className="absolute bg-indigo-500/15 border-2 border-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.4)]"
+                                     style={{
+                                         left: `${minX * 100}%`,
+                                         top: `${minY * 100}%`,
+                                         width: `${(maxX - minX) * 100}%`,
+                                         height: `${(maxY - minY) * 100}%`,
+                                         borderRadius: '2px'
+                                     }}
+                                 />
+                             );
+                         })()}
+                         {/* Word-level highlights if available */}
+                         {selectedPath && metadataMap.get(selectedPath)?.word_coordinates?.map((wordCoords, i) => {
+                             if (!wordCoords || wordCoords.length < 4) return null;
+                             const xs = wordCoords.map((c: Coordinate) => c.x);
+                             const ys = wordCoords.map((c: Coordinate) => c.y);
+                             const minX = Math.min(...xs);
+                             const minY = Math.min(...ys);
+                             const maxX = Math.max(...xs);
+                             const maxY = Math.max(...ys);
+                             return (
+                                 <div
+                                     key={`word-${i}`}
+                                     className="absolute bg-blue-400/20 border border-blue-400"
+                                     style={{
+                                         left: `${minX * 100}%`,
+                                         top: `${minY * 100}%`,
+                                         width: `${(maxX - minX) * 100}%`,
+                                         height: `${(maxY - minY) * 100}%`,
+                                         borderRadius: '1px'
+                                     }}
+                                 />
+                             );
+                         })}
                      </div>
                  </div>
              ) : (
@@ -310,9 +345,12 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
                      <div className="absolute top-2 right-2 text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-400 font-mono">
                          {isImageFile ? "HTML Representation" : "Converted HWP/PDF Structure"}
                      </div>
-                     <div 
+                     <div
                         className="parsed-content"
-                        dangerouslySetInnerHTML={{ __html: parsingResult?.content.html || "<p class='text-slate-400 italic text-center'>No Content</p>" }} 
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(
+                            parsingResult?.content.html || "<p class='text-slate-400 italic text-center'>No Content</p>",
+                            { ADD_TAGS: ['figure', 'figcaption', 'math', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'mover', 'munder'], ADD_ATTR: ['data-category', 'data-page', 'data-element-id'] }
+                        ) }}
                      />
                  </div>
              )}
@@ -405,7 +443,7 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
                                   {asset.category === 'equation' ? (
                                       <div className="flex-1 bg-white border border-slate-100 rounded p-2 overflow-x-auto">
                                            {asset.content.html ? (
-                                                <div dangerouslySetInnerHTML={{ __html: asset.content.html }} className="text-sm" />
+                                                <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(asset.content.html, { ADD_TAGS: ['math', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'mover', 'munder'] }) }} className="text-sm" />
                                            ) : (
                                                 <code className="text-[10px] text-slate-500">{asset.content.text}</code>
                                            )}
