@@ -384,16 +384,19 @@ export const generateSchema = async (
 
     if (onProgress) onProgress("Analyzing document structure...");
 
+    // Schema Generation API uses the same OpenAI chat completions format.
+    // System instruction goes as a separate message (role: "system"),
+    // and the document goes as image_url in the user message.
     const payload = {
       model: "information-extract",
       messages: [
         {
+          role: "system",
+          content: "Generate a JSON schema for the main tables and key-value pairs in this document. CRITICAL RULES: 1) NEVER use 'object' as a property type at ANY level. 'object' can ONLY appear as 'items' of an 'array'. 2) Inside array items, all properties must be primitive types (string, number, integer, boolean) or array. 3) If you need grouped fields, flatten them with prefixed names (e.g., 'condition_temperature' instead of nested object). 4) No nested arrays."
+        },
+        {
           role: "user",
           content: [
-            {
-              type: "text",
-              text: "Generate a JSON schema for the main tables and key-value pairs in this document. CRITICAL RULES: 1) NEVER use 'object' as a property type at ANY level. 'object' can ONLY appear as 'items' of an 'array'. 2) Inside array items, all properties must be primitive types (string, number, integer, boolean) or array. 3) If you need grouped fields, flatten them with prefixed names (e.g., 'condition_temperature' instead of nested object). 4) No nested arrays."
-            },
             {
               type: "image_url",
               image_url: { url: dataUrl }
