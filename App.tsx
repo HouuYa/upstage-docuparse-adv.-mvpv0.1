@@ -71,7 +71,7 @@ const initialState: AppState = {
     parsingResult: null,
     extractionResult: null,
     schemaJson: JSON.stringify(KC_SAFETY_SCHEMA, null, 2),
-    extractionMode: 'enhanced',
+    extractionMode: 'standard',
     isSchemaGenerating: false,
     verifiedData: null,
     model: "document-parse-nightly",

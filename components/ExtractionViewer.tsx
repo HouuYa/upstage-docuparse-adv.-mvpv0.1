@@ -98,22 +98,54 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
   }, [extractedData, selectedAssetId, activeTab]);
 
   // Asset-HTML Source Linking: scroll to and highlight selected asset in HTML source
+  // Strategy: try data-element-id first, then fall back to category+index matching
   useEffect(() => {
-    if (selectedAssetId !== null && activeTab === 'parsed' && sourceRef.current) {
-      const el = sourceRef.current.querySelector(`[data-element-id="${selectedAssetId}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('asset-highlight');
-        const timer = setTimeout(() => {
-          el.classList.remove('asset-highlight');
-        }, 3000);
-        return () => {
-          clearTimeout(timer);
-          el.classList.remove('asset-highlight');
+    if (selectedAssetId === null || activeTab !== 'parsed' || !sourceRef.current) return;
+
+    let targetEl: Element | null = null;
+
+    // Strategy 1: Try data-element-id attribute (if Upstage HTML includes it)
+    targetEl = sourceRef.current.querySelector(`[data-element-id="${selectedAssetId}"]`);
+
+    // Strategy 2: Fall back to category + position index matching
+    if (!targetEl && parsingResult) {
+      const asset = parsingResult.elements.find(el => el.id === selectedAssetId);
+      if (asset) {
+        // Count how many elements of this category appear before this one
+        const sameCategoryBefore = parsingResult.elements.filter(
+          el => el.category === asset.category && el.id < asset.id
+        );
+        const categoryIndex = sameCategoryBefore.length;
+
+        // Map category to CSS selectors for matching DOM elements
+        const selectorMap: Record<string, string> = {
+          'table': 'table',
+          'figure': 'figure, .parsed-content > img',
+          'chart': 'table, figure',
+          'equation': '[data-category="equation"], p:has(math), .parsed-content math',
         };
+        const selector = selectorMap[asset.category];
+        if (selector) {
+          const candidates = sourceRef.current.querySelectorAll(selector);
+          if (categoryIndex < candidates.length) {
+            targetEl = candidates[categoryIndex];
+          }
+        }
       }
     }
-  }, [selectedAssetId, activeTab]);
+
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      (targetEl as HTMLElement).classList.add('asset-highlight');
+      const timer = setTimeout(() => {
+        (targetEl as HTMLElement).classList.remove('asset-highlight');
+      }, 3000);
+      return () => {
+        clearTimeout(timer);
+        (targetEl as HTMLElement)?.classList.remove('asset-highlight');
+      };
+    }
+  }, [selectedAssetId, activeTab, parsingResult]);
 
   // --- Helpers ---
   const flattenMetadata = (obj: NestedMetadata, prefix = ''): Record<string, MetadataValue> => {
