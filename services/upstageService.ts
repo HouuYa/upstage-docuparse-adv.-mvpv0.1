@@ -14,10 +14,16 @@ export interface SchemaValidationResult {
 
 /**
  * Validates a JSON schema against Upstage Information Extraction API constraints.
- * - First-level properties cannot be 'object' (must be string/number/integer/boolean/array)
- * - No nested arrays
+ *
+ * Key rule: 'object' type can ONLY appear as 'items' of an 'array'.
+ * It CANNOT be used as a property type at ANY level (not just first-level).
+ * Inside array items (which are objects), all properties must be primitive or array.
+ *
+ * Other constraints:
+ * - No nested arrays (array items cannot be another array)
  * - Max 100 properties (sync API)
  * - Max 15,000 characters (sync API)
+ * - Total property name length <= 10,000 characters
  */
 export const validateSchema = (schema: any): SchemaValidationResult => {
   const errors: string[] = [];
@@ -33,21 +39,13 @@ export const validateSchema = (schema: any): SchemaValidationResult => {
     return { valid: false, errors, warnings };
   }
 
-  const props = schema.properties;
-  const propKeys = Object.keys(props);
-
-  // Check property count
-  if (propKeys.length > 100) {
-    errors.push(`속성 수가 ${propKeys.length}개로 동기 API 제한(100개)을 초과합니다.`);
-  }
-
   // Check total character count
   const schemaStr = JSON.stringify(schema);
   if (schemaStr.length > 15000) {
     warnings.push(`스키마 문자 수가 ${schemaStr.length}자로 동기 API 제한(15,000자)에 근접하거나 초과합니다.`);
   }
 
-  // Check total property name length (docs: cannot exceed 10,000 characters)
+  // Collect all property names and count total properties
   const collectNames = (obj: any): string[] => {
     const names: string[] = [];
     if (obj?.properties) {
@@ -62,65 +60,96 @@ export const validateSchema = (schema: any): SchemaValidationResult => {
     return names;
   };
   const allNames = collectNames(schema);
+
+  if (allNames.length > 100) {
+    errors.push(`총 속성 수가 ${allNames.length}개로 동기 API 제한(100개)을 초과합니다.`);
+  }
+
   const totalNameLength = allNames.reduce((sum, n) => sum + n.length, 0);
   if (totalNameLength > 10000) {
     errors.push(`속성명 총 문자수가 ${totalNameLength}자로 제한(10,000자)을 초과합니다.`);
   }
 
-  // Check first-level properties for 'object' type
-  for (const key of propKeys) {
-    const prop = props[key];
-    if (prop.type === 'object') {
-      errors.push(`1차 속성 "${key}"의 타입이 'object'입니다. API 제약상 1차 속성은 'string', 'number', 'integer', 'boolean', 'array'만 가능합니다. 'array'로 래핑하거나 개별 속성으로 분리해주세요.`);
-    }
-  }
+  // Recursively check ALL properties at every level:
+  // - No property can have type 'object' (object is only allowed as array items)
+  // - No nested arrays
+  const checkProperties = (properties: Record<string, any>, path: string) => {
+    for (const [key, prop] of Object.entries(properties) as [string, any][]) {
+      const currentPath = path ? `${path}.${key}` : key;
 
-  // Check for nested arrays
-  const checkNestedArray = (obj: any, path: string) => {
-    if (obj?.type === 'array' && obj.items?.type === 'array') {
-      errors.push(`"${path}"에 중첩 배열이 있습니다. Upstage API는 중첩 배열을 지원하지 않습니다.`);
-    }
-    if (obj?.type === 'array' && obj.items?.type === 'object' && obj.items.properties) {
-      for (const [k, v] of Object.entries(obj.items.properties)) {
-        checkNestedArray(v, `${path}.items.${k}`);
+      if (prop.type === 'object') {
+        errors.push(
+          `"${currentPath}"의 타입이 'object'입니다. ` +
+          `Upstage API에서 'object'는 array의 items로만 사용 가능합니다. ` +
+          `개별 속성으로 플랫화하거나 array로 래핑해주세요.`
+        );
       }
-    }
-    if (obj?.type === 'object' && obj.properties) {
-      for (const [k, v] of Object.entries(obj.properties)) {
-        checkNestedArray(v, `${path}.${k}`);
+
+      if (prop.type === 'array') {
+        if (prop.items?.type === 'array') {
+          errors.push(`"${currentPath}"에 중첩 배열이 있습니다. Upstage API는 중첩 배열을 지원하지 않습니다.`);
+        }
+        // Recurse into array items object properties
+        if (prop.items?.type === 'object' && prop.items.properties) {
+          checkProperties(prop.items.properties, `${currentPath}[]`);
+        }
       }
     }
   };
 
-  for (const key of propKeys) {
-    checkNestedArray(props[key], key);
-  }
+  checkProperties(schema.properties, '');
 
   return { valid: errors.length === 0, errors, warnings };
 };
 
 /**
- * Auto-fix a schema by converting first-level 'object' properties to 'array' wrappers.
+ * Auto-fix a schema by flattening 'object' properties at ALL levels.
+ * Object properties are expanded into their parent with prefixed names.
+ * This is applied recursively through array items as well.
  * Returns a new schema object (does not mutate the original).
  */
 export const autoFixSchema = (schema: any): any => {
   if (!schema?.properties) return schema;
 
   const fixed = JSON.parse(JSON.stringify(schema));
-  for (const [key, prop] of Object.entries(fixed.properties) as [string, any][]) {
-    if (prop.type === 'object' && prop.properties) {
-      // Convert object to array with single-item semantics
-      fixed.properties[key] = {
-        type: 'array',
-        description: prop.description || `${key} (auto-converted from object)`,
-        items: {
-          type: 'object',
-          properties: prop.properties,
-          ...(prop.required ? { required: prop.required } : {})
+
+  const flattenObjectProperties = (properties: Record<string, any>): Record<string, any> => {
+    const result: Record<string, any> = {};
+
+    for (const [key, prop] of Object.entries(properties) as [string, any][]) {
+      if (prop.type === 'object' && prop.properties) {
+        // Flatten: expand nested object properties into parent with prefix
+        for (const [subKey, subProp] of Object.entries(prop.properties) as [string, any][]) {
+          const flatKey = `${key}_${subKey}`;
+          if (subProp.type === 'object' && subProp.properties) {
+            // Recursively flatten deeper nested objects
+            const deepFlat = flattenObjectProperties({ [flatKey]: subProp });
+            Object.assign(result, deepFlat);
+          } else {
+            result[flatKey] = { ...subProp };
+            if (!result[flatKey].description) {
+              result[flatKey].description = `${key} > ${subKey}`;
+            }
+          }
         }
-      };
+      } else if (prop.type === 'array' && prop.items?.type === 'object' && prop.items.properties) {
+        // Recurse into array items to fix nested objects there too
+        result[key] = {
+          ...prop,
+          items: {
+            ...prop.items,
+            properties: flattenObjectProperties(prop.items.properties)
+          }
+        };
+      } else {
+        result[key] = prop;
+      }
     }
-  }
+
+    return result;
+  };
+
+  fixed.properties = flattenObjectProperties(fixed.properties);
   return fixed;
 };
 
@@ -157,11 +186,16 @@ const handleApiError = async (response: Response, context: string): Promise<neve
   if (errorMessage.length > 300) errorMessage = errorMessage.substring(0, 300) + "...";
 
   // User-friendly error mapping for known patterns
-  if (status === 400 && errorMessage.includes("first-level properties cannot be 'object'")) {
+  if (status === 400 && (
+    errorMessage.includes("cannot be 'object'") ||
+    errorMessage.includes("properties of object cannot")
+  )) {
     throw new Error(
-      `[${context}] 스키마 오류: 1차 속성에 'object' 타입을 사용할 수 없습니다.\n` +
-      `'string', 'number', 'integer', 'boolean', 'array'만 허용됩니다.\n` +
-      `해결 방법: object 속성을 array로 래핑하거나 개별 string 속성으로 분리해주세요.\n` +
+      `[${context}] 스키마 오류: 'object' 타입은 property로 사용할 수 없습니다.\n` +
+      `'object'는 오직 array의 items로만 허용됩니다.\n` +
+      `array items 안의 properties도 string/number/integer/boolean/array만 가능합니다.\n` +
+      `해결 방법: 중첩 object를 접두사 기반 flat 속성으로 분리해주세요.\n` +
+      `(예: conditions.temperature → condition_temperature)\n` +
       `(원문: ${errorMessage})`
     );
   }
@@ -169,7 +203,7 @@ const handleApiError = async (response: Response, context: string): Promise<neve
   if (status === 400 && errorMessage.includes("Invalid Schema")) {
     throw new Error(
       `[${context}] 스키마 유효성 오류: ${errorMessage}\n` +
-      `스키마 제약사항을 확인해주세요: 1차 속성에 object 불가, 중첩 배열 불가, 최대 100개 속성.`
+      `스키마 제약사항: object는 array items로만 사용 가능, 중첩 배열 불가, 최대 100개 속성.`
     );
   }
 
@@ -358,7 +392,7 @@ export const generateSchema = async (
           content: [
             {
               role: "system",
-              content: "Generate a JSON schema for the main tables and key-value pairs in this document. IMPORTANT: First-level properties must be 'string', 'number', 'integer', 'boolean', or 'array' only. Do NOT use 'object' type at the first level. If you need object-type data, wrap them as items of an array."
+              content: "Generate a JSON schema for the main tables and key-value pairs in this document. CRITICAL RULES: 1) NEVER use 'object' as a property type at ANY level. 'object' can ONLY appear as 'items' of an 'array'. 2) Inside array items, all properties must be primitive types (string, number, integer, boolean) or array. 3) If you need grouped fields, flatten them with prefixed names (e.g., 'condition_temperature' instead of nested object). 4) No nested arrays."
             },
             {
               type: "image_url",

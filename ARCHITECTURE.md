@@ -107,13 +107,16 @@ graph LR
 ### 지원 타입
 - 기본: `string`, `number`, `integer`, `boolean`
 - 복합: `array`, `object`
-- **제약**: 1차 속성은 `string`/`integer`/`number`/`array`만 가능 (object 불가)
+- **제약**: `object` 타입은 오직 `array`의 `items`로만 사용 가능 (property 타입으로는 **어떤 레벨에서든** 불가)
+- **제약**: array items 내부의 properties도 반드시 primitive(string/number/integer/boolean) 또는 array만 가능
 - **제약**: 중첩 배열 불가
+- **제약**: 속성명 총 문자수 10,000자 이하, 동기 API 속성 100개/15,000자 이하
 
 ### KC 안전기준 스키마 예시
 
-> **주의**: 1차 속성에는 `object` 타입을 사용할 수 없습니다.
-> `object`가 필요한 경우 `array`로 래핑하여 items 안에 배치합니다.
+> **주의**: `object` 타입은 `array`의 `items`로만 사용할 수 있습니다.
+> array items 안의 properties도 object가 될 수 없으므로, 중첩 구조는 접두사 기반으로 플랫화합니다.
+> (예: `conditions.temperature` → `condition_temperature`)
 
 ```json
 {
@@ -141,22 +144,11 @@ graph LR
             "type": "string",
             "description": "시험 항목명 (예: 점도, 끓는점, 안정성)"
           },
-          "conditions": {
-            "type": "object",
-            "properties": {
-              "temperature": {"type": "string", "description": "시험 온도"},
-              "time": {"type": "string", "description": "시험 시간"},
-              "method": {"type": "string", "description": "시험 방법"}
-            }
-          },
-          "standard_value": {
-            "type": "object",
-            "properties": {
-              "value": {"type": "number", "description": "기준값 (숫자)"},
-              "unit_internal": {"type": "string", "description": "내부 정규화 단위 (예: mm2/s)"},
-              "unit_display": {"type": "string", "description": "표시용 단위 (예: mm²/s)"}
-            }
-          }
+          "condition_temperature": {"type": "string", "description": "시험 온도"},
+          "condition_time": {"type": "string", "description": "시험 시간"},
+          "condition_method": {"type": "string", "description": "시험 방법"},
+          "standard_value": {"type": "string", "description": "기준값 (숫자 및 범위 포함)"},
+          "standard_unit": {"type": "string", "description": "단위 (예: mm²/s, mg/kg)"}
         },
         "required": ["test_item"]
       }
