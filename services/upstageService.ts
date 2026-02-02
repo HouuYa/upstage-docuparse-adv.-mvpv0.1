@@ -391,8 +391,8 @@ export const generateSchema = async (
           role: "user",
           content: [
             {
-              role: "system",
-              content: "Generate a JSON schema for the main tables and key-value pairs in this document. CRITICAL RULES: 1) NEVER use 'object' as a property type at ANY level. 'object' can ONLY appear as 'items' of an 'array'. 2) Inside array items, all properties must be primitive types (string, number, integer, boolean) or array. 3) If you need grouped fields, flatten them with prefixed names (e.g., 'condition_temperature' instead of nested object). 4) No nested arrays."
+              type: "text",
+              text: "Generate a JSON schema for the main tables and key-value pairs in this document. CRITICAL RULES: 1) NEVER use 'object' as a property type at ANY level. 'object' can ONLY appear as 'items' of an 'array'. 2) Inside array items, all properties must be primitive types (string, number, integer, boolean) or array. 3) If you need grouped fields, flatten them with prefixed names (e.g., 'condition_temperature' instead of nested object). 4) No nested arrays."
             },
             {
               type: "image_url",

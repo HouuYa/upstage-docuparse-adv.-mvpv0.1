@@ -97,6 +97,24 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
     }
   }, [extractedData, selectedAssetId, activeTab]);
 
+  // Asset-HTML Source Linking: scroll to and highlight selected asset in HTML source
+  useEffect(() => {
+    if (selectedAssetId !== null && activeTab === 'parsed' && sourceRef.current) {
+      const el = sourceRef.current.querySelector(`[data-element-id="${selectedAssetId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('asset-highlight');
+        const timer = setTimeout(() => {
+          el.classList.remove('asset-highlight');
+        }, 3000);
+        return () => {
+          clearTimeout(timer);
+          el.classList.remove('asset-highlight');
+        };
+      }
+    }
+  }, [selectedAssetId, activeTab]);
+
   // --- Helpers ---
   const flattenMetadata = (obj: NestedMetadata, prefix = ''): Record<string, MetadataValue> => {
     let result: Record<string, MetadataValue> = {};
@@ -154,6 +172,29 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
     setPath(newData, parts, newValue);
     setExtractedData(newData);
     if (onDataChange) onDataChange(newData);
+  };
+
+  // --- Bounding Box Helper ---
+  const renderBoundingBox = (
+    coords: Coordinate[],
+    className: string,
+    key?: string
+  ): React.ReactNode => {
+    if (!coords || coords.length < 4) return null;
+    const xs = coords.map(c => c.x);
+    const ys = coords.map(c => c.y);
+    return (
+      <div
+        key={key}
+        className={`absolute ${className}`}
+        style={{
+          left: `${Math.min(...xs) * 100}%`,
+          top: `${Math.min(...ys) * 100}%`,
+          width: `${(Math.max(...xs) - Math.min(...xs)) * 100}%`,
+          height: `${(Math.max(...ys) - Math.min(...ys)) * 100}%`,
+        }}
+      />
+    );
   };
 
   // --- Rendering Components ---
@@ -246,7 +287,17 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
 
   return (
     <div className="flex flex-col lg:flex-row h-full gap-0 bg-slate-100 border-t border-slate-200">
-      
+      {/* Highlight style for asset-HTML linking */}
+      <style>{`
+        .asset-highlight {
+          outline: 3px solid #6366f1;
+          outline-offset: 2px;
+          background-color: rgba(99, 102, 241, 0.1);
+          border-radius: 4px;
+          transition: outline-color 0.5s ease-out, background-color 0.5s ease-out;
+        }
+      `}</style>
+
       {/* --- LEFT PANEL: DOCUMENT SOURCE --- */}
       <div className="lg:w-1/2 flex flex-col border-r border-slate-200 bg-slate-200/50">
         {/* Toolbar */}
@@ -293,51 +344,14 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
                          {/* Highlight for extracted data — bounding box from 4 corners */}
                          {selectedPath && (() => {
                              const meta = metadataMap.get(selectedPath);
-                             const coords = meta?.coordinates;
-                             if (!coords || coords.length < 4) return null;
-                             // coords: [top-left, top-right, bottom-right, bottom-left] with normalized 0-1 values
-                             const xs = coords.map(c => c.x);
-                             const ys = coords.map(c => c.y);
-                             const minX = Math.min(...xs);
-                             const minY = Math.min(...ys);
-                             const maxX = Math.max(...xs);
-                             const maxY = Math.max(...ys);
-                             return (
-                                 <div
-                                     className="absolute bg-indigo-500/15 border-2 border-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.4)]"
-                                     style={{
-                                         left: `${minX * 100}%`,
-                                         top: `${minY * 100}%`,
-                                         width: `${(maxX - minX) * 100}%`,
-                                         height: `${(maxY - minY) * 100}%`,
-                                         borderRadius: '2px'
-                                     }}
-                                 />
-                             );
+                             return meta?.coordinates
+                               ? renderBoundingBox(meta.coordinates, 'bg-indigo-500/15 border-2 border-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.4)] rounded-sm')
+                               : null;
                          })()}
                          {/* Word-level highlights if available */}
-                         {selectedPath && metadataMap.get(selectedPath)?.word_coordinates?.map((wordCoords, i) => {
-                             if (!wordCoords || wordCoords.length < 4) return null;
-                             const xs = wordCoords.map((c: Coordinate) => c.x);
-                             const ys = wordCoords.map((c: Coordinate) => c.y);
-                             const minX = Math.min(...xs);
-                             const minY = Math.min(...ys);
-                             const maxX = Math.max(...xs);
-                             const maxY = Math.max(...ys);
-                             return (
-                                 <div
-                                     key={`word-${i}`}
-                                     className="absolute bg-blue-400/20 border border-blue-400"
-                                     style={{
-                                         left: `${minX * 100}%`,
-                                         top: `${minY * 100}%`,
-                                         width: `${(maxX - minX) * 100}%`,
-                                         height: `${(maxY - minY) * 100}%`,
-                                         borderRadius: '1px'
-                                     }}
-                                 />
-                             );
-                         })}
+                         {selectedPath && metadataMap.get(selectedPath)?.word_coordinates?.map((wordCoords, i) =>
+                             renderBoundingBox(wordCoords, 'bg-blue-400/20 border border-blue-400 rounded-[1px]', `word-${i}`)
+                         )}
                      </div>
                  </div>
              ) : (
@@ -405,6 +419,7 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
                               onClick={() => {
                                   setSelectedAssetId(asset.id);
                                   setSelectedPath(null);
+                                  setActiveTab('parsed');
                               }}
                               className={`
                                   relative flex gap-4 p-3 rounded-lg border cursor-pointer transition-all
