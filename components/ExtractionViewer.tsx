@@ -174,6 +174,29 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
     if (onDataChange) onDataChange(newData);
   };
 
+  // --- Bounding Box Helper ---
+  const renderBoundingBox = (
+    coords: Coordinate[],
+    className: string,
+    key?: string
+  ): React.ReactNode => {
+    if (!coords || coords.length < 4) return null;
+    const xs = coords.map(c => c.x);
+    const ys = coords.map(c => c.y);
+    return (
+      <div
+        key={key}
+        className={`absolute ${className}`}
+        style={{
+          left: `${Math.min(...xs) * 100}%`,
+          top: `${Math.min(...ys) * 100}%`,
+          width: `${(Math.max(...xs) - Math.min(...xs)) * 100}%`,
+          height: `${(Math.max(...ys) - Math.min(...ys)) * 100}%`,
+        }}
+      />
+    );
+  };
+
   // --- Rendering Components ---
 
   const renderRecursiveFields = (data: any, path: string = ''): React.ReactNode => {
@@ -321,51 +344,14 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
                          {/* Highlight for extracted data — bounding box from 4 corners */}
                          {selectedPath && (() => {
                              const meta = metadataMap.get(selectedPath);
-                             const coords = meta?.coordinates;
-                             if (!coords || coords.length < 4) return null;
-                             // coords: [top-left, top-right, bottom-right, bottom-left] with normalized 0-1 values
-                             const xs = coords.map(c => c.x);
-                             const ys = coords.map(c => c.y);
-                             const minX = Math.min(...xs);
-                             const minY = Math.min(...ys);
-                             const maxX = Math.max(...xs);
-                             const maxY = Math.max(...ys);
-                             return (
-                                 <div
-                                     className="absolute bg-indigo-500/15 border-2 border-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.4)]"
-                                     style={{
-                                         left: `${minX * 100}%`,
-                                         top: `${minY * 100}%`,
-                                         width: `${(maxX - minX) * 100}%`,
-                                         height: `${(maxY - minY) * 100}%`,
-                                         borderRadius: '2px'
-                                     }}
-                                 />
-                             );
+                             return meta?.coordinates
+                               ? renderBoundingBox(meta.coordinates, 'bg-indigo-500/15 border-2 border-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.4)] rounded-sm')
+                               : null;
                          })()}
                          {/* Word-level highlights if available */}
-                         {selectedPath && metadataMap.get(selectedPath)?.word_coordinates?.map((wordCoords, i) => {
-                             if (!wordCoords || wordCoords.length < 4) return null;
-                             const xs = wordCoords.map((c: Coordinate) => c.x);
-                             const ys = wordCoords.map((c: Coordinate) => c.y);
-                             const minX = Math.min(...xs);
-                             const minY = Math.min(...ys);
-                             const maxX = Math.max(...xs);
-                             const maxY = Math.max(...ys);
-                             return (
-                                 <div
-                                     key={`word-${i}`}
-                                     className="absolute bg-blue-400/20 border border-blue-400"
-                                     style={{
-                                         left: `${minX * 100}%`,
-                                         top: `${minY * 100}%`,
-                                         width: `${(maxX - minX) * 100}%`,
-                                         height: `${(maxY - minY) * 100}%`,
-                                         borderRadius: '1px'
-                                     }}
-                                 />
-                             );
-                         })}
+                         {selectedPath && metadataMap.get(selectedPath)?.word_coordinates?.map((wordCoords, i) =>
+                             renderBoundingBox(wordCoords, 'bg-blue-400/20 border border-blue-400 rounded-[1px]', `word-${i}`)
+                         )}
                      </div>
                  </div>
              ) : (
