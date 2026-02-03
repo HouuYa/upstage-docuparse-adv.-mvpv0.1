@@ -111,9 +111,10 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
     if (!targetEl && parsingResult) {
       const asset = parsingResult.elements.find(el => el.id === selectedAssetId);
       if (asset) {
-        // Count how many elements of this category appear before this one
-        const sameCategoryBefore = parsingResult.elements.filter(
-          el => el.category === asset.category && el.id < asset.id
+        // Count how many elements of this category appear before this one in document order
+        const assetIndex = parsingResult.elements.indexOf(asset);
+        const sameCategoryBefore = parsingResult.elements.slice(0, assetIndex).filter(
+          el => el.category === asset.category
         );
         const categoryIndex = sameCategoryBefore.length;
 
