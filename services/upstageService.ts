@@ -308,66 +308,94 @@ export const parseDocument = async (
 
 // --- Information Extraction Service (Universal) ---
 
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [3000, 6000, 12000]; // 3s, 6s, 12s exponential backoff
+
 export const extractInformation = async (
   file: File,
   apiKey: string,
   options: ExtractionOptions,
   onProgress?: (status: string) => void
 ): Promise<ExtractionResponse> => {
-  try {
-    const cleanApiKey = apiKey.trim();
+  const cleanApiKey = apiKey.trim();
 
-    if (onProgress) onProgress("Digitizing document (Base64)...");
-    const base64Data = await fileToBase64(file);
-    const dataUrl = `data:application/octet-stream;base64,${base64Data}`;
+  if (onProgress) onProgress("Digitizing document (Base64)...");
+  const base64Data = await fileToBase64(file);
+  const dataUrl = `data:application/octet-stream;base64,${base64Data}`;
 
-    if (onProgress) onProgress("Sending to Universal Extraction API...");
+  const payload = {
+    model: "information-extract",
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: { url: dataUrl }
+          }
+        ]
+      }
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "document_schema",
+        schema: options.schema
+      }
+    },
+    mode: options.mode || "standard",
+    confidence: options.confidence,
+    location: options.location,
+    location_granularity: options.location_granularity || "element"
+  };
 
-    const payload = {
-      model: "information-extract",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image_url",
-              image_url: { url: dataUrl }
-            }
-          ]
-        }
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "document_schema",
-          schema: options.schema
-        }
-      },
-      mode: options.mode || "standard",
-      confidence: options.confidence,
-      location: options.location,
-      location_granularity: options.location_granularity || "element"
-    };
+  const fetchOptions: RequestInit = {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${cleanApiKey}`,
+    },
+    body: JSON.stringify(payload),
+  };
 
-    const response = await fetchWithTimeout(UPSTAGE_EXTRACTION_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${cleanApiKey}`,
-      },
-      body: JSON.stringify(payload),
-    });
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      if (attempt > 0) {
+        const delay = RETRY_DELAYS[attempt - 1] || 12000;
+        if (onProgress) onProgress(`서버 타임아웃 (504). ${delay / 1000}초 후 자동 재시도... (${attempt}/${MAX_RETRIES})`);
+        await new Promise(r => setTimeout(r, delay));
+        if (onProgress) onProgress(`재시도 중... (${attempt}/${MAX_RETRIES})`);
+      } else {
+        if (onProgress) onProgress("Sending to Universal Extraction API...");
+      }
 
-    if (!response.ok) {
-      await handleApiError(response, "Information Extraction");
+      const response = await fetchWithTimeout(UPSTAGE_EXTRACTION_URL, fetchOptions);
+
+      // Retry on 504 Gateway Timeout
+      if (response.status === 504 && attempt < MAX_RETRIES) {
+        console.warn(`Extraction API returned 504, retrying (${attempt + 1}/${MAX_RETRIES})...`);
+        continue;
+      }
+
+      if (!response.ok) {
+        await handleApiError(response, "Information Extraction");
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      // Only retry on 504-related errors; throw everything else immediately
+      if (attempt < MAX_RETRIES && error.message?.includes('504')) {
+        continue;
+      }
+      if (attempt === MAX_RETRIES || !error.message?.includes('504')) {
+        console.error("Extraction Error:", error);
+        checkNetworkError(error, "Extraction");
+        throw error;
+      }
     }
-
-    return await response.json();
-  } catch (error: any) {
-    console.error("Extraction Error:", error);
-    checkNetworkError(error, "Extraction");
-    throw error;
   }
+
+  throw new Error("[Information Extraction] 서버 타임아웃이 반복됩니다. 잠시 후 다시 시도하거나 Standard 모드를 사용해주세요.");
 };
 
 export const generateSchema = async (

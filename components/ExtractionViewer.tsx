@@ -2,10 +2,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import DOMPurify from "dompurify";
 import { ExtractionResponse, MetadataValue, UpstageResponse, Coordinate } from "../types";
-import { 
-  AlertTriangle, MousePointerClick, Check, 
-  Image as ImageIcon, Grid, ArrowLeft, Info, Copy, 
-  RotateCcw, FileText, Sigma
+import {
+  AlertTriangle, MousePointerClick, Check,
+  Image as ImageIcon, Grid, ArrowLeft, Info, Copy,
+  RotateCcw, FileText, Sigma, Pencil
 } from "lucide-react";
 
 interface ExtractionViewerProps {
@@ -282,29 +282,37 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
                                     }}
                                 >
                                     <div className="flex-1 min-w-0">
-                                        <label className="text-xs font-semibold text-slate-600 mb-0.5 block truncate" title={key}>
+                                        <label className="text-xs font-semibold text-slate-600 mb-1 block truncate" title={key}>
                                             {key.replace(/_/g, ' ')}
                                         </label>
-                                        <input 
-                                            type="text"
-                                            value={String(value)}
-                                            onChange={(e) => handleValueChange(currentPath, e.target.value)}
-                                            className={`
-                                                w-full bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none text-sm text-slate-900 font-medium
-                                                ${isSelected ? 'border-indigo-300' : 'group-hover:border-slate-300'}
-                                            `}
-                                        />
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                value={String(value)}
+                                                onChange={(e) => handleValueChange(currentPath, e.target.value)}
+                                                className={`
+                                                    w-full px-2 py-1.5 pr-7 text-sm text-slate-900 font-medium rounded-md border transition-all
+                                                    ${isSelected
+                                                        ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-200'
+                                                        : 'border-slate-300 bg-slate-50 hover:border-indigo-300 hover:bg-white'}
+                                                    focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 focus:outline-none
+                                                `}
+                                            />
+                                            <Pencil className={`absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none transition-colors
+                                                ${isSelected ? 'text-indigo-500' : 'text-slate-400 group-hover:text-indigo-400'}`}
+                                            />
+                                        </div>
                                     </div>
-                                    
+
                                     {/* Status Indicator */}
-                                    <div className="flex flex-col items-end gap-1 pt-1">
+                                    <div className="flex flex-col items-end gap-1 pt-5">
                                         {confidence === 'low' && (
-                                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-bold whitespace-nowrap" title="Low Confidence">
-                                                <AlertTriangle className="w-3 h-3" /> Check
+                                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-bold whitespace-nowrap" title="신뢰도 낮음 - 확인 필요">
+                                                <AlertTriangle className="w-3 h-3" /> 확인
                                             </div>
                                         )}
                                         {meta?.coordinates && isImageFile && (
-                                            <MousePointerClick className={`w-3.5 h-3.5 ${isSelected ? 'text-indigo-600' : 'text-slate-300'}`} />
+                                            <MousePointerClick className={`w-3.5 h-3.5 ${isSelected ? 'text-indigo-600' : 'text-slate-300'}`} title="위치 보기" />
                                         )}
                                     </div>
                                 </div>
@@ -390,7 +398,7 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
              ) : (
                  <div className="w-full h-full bg-white rounded-lg shadow-sm p-8 overflow-auto custom-scrollbar relative" ref={sourceRef}>
                      <div className="absolute top-2 right-2 text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-400 font-mono">
-                         {isImageFile ? "HTML Representation" : "Converted HWP/PDF Structure"}
+                         {isImageFile ? "HTML 변환 결과" : "HWP/PDF 구조 변환"}
                      </div>
                      <div
                         className="parsed-content"
@@ -408,32 +416,33 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
       <div className="lg:w-1/2 flex flex-col bg-white">
           <div className="flex-none p-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-600" /> Verify & Correct
+                  <Check className="w-4 h-4 text-green-600" /> 검증 및 수정
               </h3>
               <div className="flex items-center gap-2">
                   {onEditSchema && (
                       <button onClick={onEditSchema} className="text-xs font-medium text-slate-500 hover:text-indigo-600 flex items-center gap-1 px-2 py-1 hover:bg-white rounded border border-transparent hover:border-slate-200 transition-all">
-                          <RotateCcw className="w-3 h-3" /> Edit Schema
+                          <RotateCcw className="w-3 h-3" /> 스키마 수정
                       </button>
                   )}
                   <div className="text-[10px] bg-slate-200 px-2 py-1 rounded-full text-slate-600 font-mono">
-                      {assets.length} Assets
+                      에셋 {assets.length}개
                   </div>
               </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-white">
-              
+
               {/* SECTION 1: EXTRACTED DATA FIELDS */}
               <div className="mb-8">
-                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">
-                      Extracted Data
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                      <Pencil className="w-3 h-3" /> 추출된 데이터
+                      <span className="text-[10px] font-normal normal-case text-slate-300 ml-auto">클릭하여 수정</span>
                   </h4>
                   {extractedData ? (
                       renderRecursiveFields(extractedData)
                   ) : (
                       <div className="p-4 text-center text-slate-400 text-sm border border-dashed border-slate-200 rounded-lg">
-                          No data extracted.
+                          추출된 데이터가 없습니다.
                       </div>
                   )}
               </div>
@@ -441,8 +450,8 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
               {/* SECTION 2: DOCUMENT ASSETS (Tables, Equations, Figures) */}
               <div>
                   <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2 flex justify-between items-center">
-                      <span>Detected Assets</span>
-                      <span className="text-[10px] font-normal normal-case text-slate-400">Figures, Tables, Equations</span>
+                      <span>감지된 에셋</span>
+                      <span className="text-[10px] font-normal normal-case text-slate-400">그림, 표, 수식</span>
                   </h4>
                   
                   <div className="grid grid-cols-1 gap-4">
@@ -499,29 +508,29 @@ const ExtractionViewer: React.FC<ExtractionViewerProps> = ({
                                   ) : (
                                       <div className="flex-1">
                                           <p className="text-xs text-slate-600 line-clamp-3 font-mono bg-slate-50 p-2 rounded">
-                                              {asset.content.text || asset.content.html || "(No text content)"}
+                                              {asset.content.text || asset.content.html || "(텍스트 없음)"}
                                           </p>
                                       </div>
                                   )}
-                                  
+
                                   {/* Copy Button */}
-                                  <button 
+                                  <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         navigator.clipboard.writeText(asset.content.text || "");
                                     }}
                                     className="mt-2 self-end flex items-center gap-1 text-[10px] font-medium text-slate-400 hover:text-indigo-600"
                                   >
-                                      <Copy className="w-3 h-3" /> Copy Text
+                                      <Copy className="w-3 h-3" /> 텍스트 복사
                                   </button>
                               </div>
                           </div>
                       ))}
-                      
+
                       {assets.length === 0 && (
                           <div className="text-center py-8 text-slate-400">
                               <Info className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                              <p className="text-xs">No visual assets detected.</p>
+                              <p className="text-xs">감지된 에셋이 없습니다.</p>
                           </div>
                       )}
                   </div>
